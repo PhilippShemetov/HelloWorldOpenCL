@@ -55,14 +55,12 @@ void outputPlatform() {
 }
 
 void printBlockAndGroup() {
-    const char* source = 
-        "__kernel void printHello () {                 \n"\
-        "   int globalID = get_global_id(0);           \n"\
-        "   int localID = get_local_id(0);             \n"\
-        "   int groupID = get_group_id(0);             \n"\
-        "   //if(groupID == 0)            \n"\
-        "   printf(\"I'm from %lu block, %lu thread (global index: %lu)\\n\",groupID,localID,globalID);                   \n"\
-        "}                                             \n";
+
+
+    std::fstream f("kernel.cl", std::ios::in);
+    std::string code((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    f.close();
+    const char* source = code.c_str();
 
     cl_uint numPlatforms = 0;
     cl_int err = CL_SUCCESS;
@@ -151,7 +149,6 @@ void printBlockAndGroup() {
 
 
     clReleaseContext(context);
-    clReleaseDevice(device);
     clReleaseProgram(program);
     clReleaseKernel(kernel);
     clReleaseCommandQueue(queue);
@@ -277,8 +274,8 @@ void AddVectors() {
         std::cout << x << " ";
     }
 
+    clReleaseMemObject(buffer);
     clReleaseContext(context);
-    clReleaseDevice(device);
     clReleaseProgram(program);
     clReleaseKernel(kernel);
     clReleaseCommandQueue(queue);
@@ -304,6 +301,13 @@ void cpuBLAS() {
 }
 
 void gpuBLAS() {
+
+    std::fstream f("BLAS.cl",std::ios::in);
+    std::string code((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    f.close();
+    const char* sourceCode = code.c_str();
+    
+
 
     cl_uint numPlatforms = 0;
     cl_int err = CL_SUCCESS;
@@ -332,16 +336,116 @@ void gpuBLAS() {
     device = devices[0];
 
     //Создаем контекст, передав устройство(GTX 1050TI на моем ПК)
-    cl_context context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
+    cl_context context = clCreateContext(nullptr, 1, &device,
+        nullptr, nullptr, &err);
     if (err != CL_SUCCESS) {
         std::cerr << "Error in context: " << err << std::endl;
     }
 
     //Создание очереди команд для взаймодествия между контекстом и устройством
-    cl_command_queue queue = clCreateCommandQueueWithProperties(context, device, nullptr, &err);
+    cl_command_queue queue =
+        clCreateCommandQueueWithProperties(context, device, nullptr, &err);
     if (err != CL_SUCCESS) {
         std::cerr << "Error in clCreateCommandQueueWithProperties: " << err << std::endl;
     }
+
+    //Получаем размер текста в ядре
+    size_t srclen[] = { strlen(sourceCode) };
+
+
+
+    //Создаем объект программы из исходного кода
+    cl_program program = clCreateProgramWithSource(context, 1, &sourceCode, srclen,
+        &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateProgramWithSource: " << err << std::endl;
+    }
+
+    //Компилируем и собираем ядро
+    err = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clBuildProgram: " << err << std::endl;
+    }
+
+    //Создание объекта ядра по имени функции ядра в исходном коде
+    cl_kernel kernel = clCreateKernel(program, "saxpy", &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateKernel: " << err << std::endl;
+    }
+
+    size_t local_work;
+
+
+    err = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE,
+        sizeof(size_t), &local_work, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clGetKernelWorkGroupInfo: " << err << std::endl;
+
+    }
+
+
+    size_t global_work = local_work * 4;
+
+    /*std::vector<int> arr(global_work);*/
+
+    TAxpyArray<float> fArray(global_work, 1, 1, 1);
+    TAxpyArray<double> dArray(global_work, 1, 1, 1);
+
+    cl_mem bufferX = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * fArray.sizeX, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateBuffer: " << err << std::endl;
+    }
+
+    cl_mem bufferY = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int) * fArray.sizeY, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateBuffer: " << err << std::endl;
+    }
+
+    //Заполняем буфер
+    err = clEnqueueWriteBuffer(queue, bufferX, CL_TRUE, 0, sizeof(int) * fArray.sizeX, fArray.x, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueWriteBuffer: " << err << std::endl;
+    }
+
+    err = clEnqueueWriteBuffer(queue, bufferY, CL_TRUE, 0, sizeof(int) * fArray.sizeY, fArray.y, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueWriteBuffer: " << err << std::endl;
+    }
+    
+    err = clSetKernelArg(kernel, 0, sizeof(unsigned int), &fArray.size);
+    err = clSetKernelArg(kernel, 1, sizeof(float), &fArray.a);
+    err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &fArray.x);
+    err = clSetKernelArg(kernel, 3, sizeof(int), &fArray.incx);
+    err = clSetKernelArg(kernel, 4, sizeof(cl_mem), &fArray.y);
+    err = clSetKernelArg(kernel, 5, sizeof(int), &fArray.incy);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clSetKernelArg: " << err << std::endl;
+    }
+
+    err = clEnqueueNDRangeKernel(queue, kernel, 1, nullptr, &global_work, &local_work, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueNDRangeKernel: " << err << std::endl;
+    }
+
+
+    err = clFinish(queue);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clFinish: " << err << std::endl;
+    }
+
+    /*err = clEnqueueReadBuffer(queue, buffer, CL_TRUE, 0, sizeof(int) * arr.size(), arr.data(), 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueReadBuffer: " << err << std::endl;
+    }
+    for (auto& x : arr) {
+        std::cout << x << " ";
+    }*/
+
+    clReleaseContext(context);
+    clReleaseDevice(device);
+    clReleaseProgram(program);
+    clReleaseKernel(kernel);
+    clReleaseCommandQueue(queue);
 
 }
 

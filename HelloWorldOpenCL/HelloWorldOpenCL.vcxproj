@@ -157,6 +157,9 @@
     <ClInclude Include="BLAS.h" />
     <ClInclude Include="TAxpyArray.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="BLAS.cl" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

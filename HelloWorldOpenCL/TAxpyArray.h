@@ -62,10 +62,10 @@ template<typename T>
 inline void TAxpyArray<T>::ArrayNotRNG()
 {
     for (int i = 0; i < sizeX; i++) {
-        x[i] = T(i);
+        x[i] = T(i) + 0.1;
     }
 
     for (int i = 0; i < sizeY; i++) {
-        y[i] = T(i);
+        y[i] = T(i) + 0.1;
     }
 }
