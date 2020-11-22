@@ -16,6 +16,7 @@ struct TAxpyArray
     ~TAxpyArray();
     void ArrayRNG();
     void ArrayNotRNG();
+    friend bool operator==(const TAxpyArray& obj1, const TAxpyArray& obj2);
 
 };
 
@@ -62,10 +63,15 @@ template<typename T>
 inline void TAxpyArray<T>::ArrayNotRNG()
 {
     for (int i = 0; i < sizeX; i++) {
-        x[i] = T(i) + 0.1;
+        x[i] = T(i);
     }
 
     for (int i = 0; i < sizeY; i++) {
-        y[i] = T(i) + 0.1;
+        y[i] = T(i);
     }
 }
+
+//template<typename T>
+//bool operator==(const TAxpyArray<T>& obj1, const TAxpyArray<T>& obj2) {
+//    for(int i = 0; i < s)
+//}
