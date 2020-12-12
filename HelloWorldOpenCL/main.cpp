@@ -4,9 +4,17 @@
 #include <string>
 #include <vector>
 #include <omp.h>
+#include <cmath>
 #include "BLAS.h"
 #include "TAxpyArray.h"
-#include <cmath>
+#include "Matrix.h"
+#include "MultiMatrix.h"
+
+
+
+
+
+constexpr int BLOCK_SIZE = 16;
 
 template<typename T>
 bool checkSaxpy(T* a, T* b, int sizeY) {
@@ -14,6 +22,22 @@ bool checkSaxpy(T* a, T* b, int sizeY) {
     for (int i = 0; i < sizeY; i++) {
         if (a[i] != b[i] && (std::fabs(a[i]-b[i]) > eps)) {
             return false;
+        }
+    }
+    return true;
+}
+
+bool checkMatrix(float* a, float* b, int size) {
+    float eps = 0.005;
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            std::cout << a[i * size + j] << " == " << b[i * size + j] << "fabs =" << std::fabs(a[i * size + j] - b[i * size + j])
+                << std::endl;
+            if (a[i * size + j] != b[i * size + j] && (std::fabs(a[i * size + j] - b[i * size + j]) > eps)) {
+                std::cout << a[i * size + j] << " != " << b[i * size + j];
+                return false;
+            }
+
         }
     }
     return true;
@@ -999,6 +1023,224 @@ void cpuBLAS_OMP() {
     }
 }
 
+void cpuMultiMatrix() {
+
+    Matrix matA(2048);
+
+    Matrix matB(matA);
+
+    Matrix matC(matB);
+
+    /*TAxpyArray<double> dArray;*/
+
+    double start = omp_get_wtime();
+    matC.mat = MultiMatrix(1024, matA.mat, matB.mat);
+    double finish = omp_get_wtime();
+    printf("Time of MultiMatrix on CPU: %f in sec\n", finish - start);
+    matC.Print();
+
+
+
+}
+
+void gpuMulti() {
+
+    std::fstream f("MultMatrix.cl", std::ios::in);
+    std::string code((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    f.close();
+    const char* sourceCode = code.c_str();
+
+
+
+    cl_uint numPlatforms = 0;
+    cl_int err = CL_SUCCESS;
+
+    clGetPlatformIDs(0, nullptr, &numPlatforms);
+
+    cl_platform_id platform = nullptr;
+
+    //Получаем число доступных платформ 
+    if (numPlatforms > 0) {
+        cl_platform_id* platforms = new cl_platform_id[numPlatforms];
+
+        clGetPlatformIDs(numPlatforms, platforms, nullptr);
+
+        platform = platforms[0];
+        delete[] platforms;
+
+    }
+
+    //Получаем устройство(GTX 1050TI на моем ПК)
+    cl_device_id* devices = new cl_device_id[1];
+    cl_device_id device = nullptr;
+
+    clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 1, devices, NULL);
+
+    device = devices[0];
+
+    //Создаем контекст, передав устройство(GTX 1050TI на моем ПК)
+    cl_context context = clCreateContext(nullptr, 1, &device,
+        nullptr, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in context: " << err << std::endl;
+    }
+
+    //Создание очереди команд для взаймодествия между контекстом и устройством
+    cl_command_queue queue =
+        clCreateCommandQueueWithProperties(context, device, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateCommandQueueWithProperties: " << err << std::endl;
+    }
+
+    //Получаем размер текста в ядре
+    size_t srclen[] = { strlen(sourceCode) };
+
+
+
+    //Создаем объект программы из исходного кода
+    cl_program program = clCreateProgramWithSource(context, 1, &sourceCode, srclen,
+        &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateProgramWithSource: " << err << std::endl;
+    }
+
+    //Компилируем и собираем ядро
+    err = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clBuildProgram: " << err << std::endl;
+    }
+
+    //Создание объекта ядра по имени функции ядра в исходном коде
+    cl_kernel kernel = clCreateKernel(program, "SimpleMultiMatrix", &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateKernel: " << err << std::endl;
+    }
+
+    size_t local_work[2] = { 16,16 };
+
+
+    //err = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE,
+    //    sizeof(size_t), &local_work[0], nullptr);
+    //if (err != CL_SUCCESS) {
+    //    std::cerr << "Error in clGetKernelWorkGroupInfo: " << err << std::endl;
+    //}
+    //err = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE,
+    //    sizeof(size_t), &local_work[1], nullptr);
+    //if (err != CL_SUCCESS) {
+    //    std::cerr << "Error in clGetKernelWorkGroupInfo: " << err << std::endl;
+    //}
+
+
+    size_t global_work[2];
+    global_work[0] = local_work[0] * BLOCK_SIZE * 4; //1024
+    global_work[1] = local_work[1] * BLOCK_SIZE * 4; //1024
+
+    Matrix matA(global_work[0]);
+    
+
+    Matrix matB(matA);
+    
+    Matrix matC(matB);
+
+    Matrix matD(matB);
+    
+    matC == matD;
+
+    matD.mat = MultiMatrix(1024, matA.mat, matB.mat);
+
+    //matD.Print();
+
+    double start2 = omp_get_wtime();
+
+    //matC.mat = TransposeMatrix(matC.size, matC.mat);
+
+    double finish2 = omp_get_wtime();
+    printf("Time of transposeMatrix: %f in sec\n", finish2 - start2);
+
+    
+    cl_mem matrixBufferA = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * matA.size * matA.size, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateBuffer: " << err << std::endl;
+    }
+
+    cl_mem matrixBufferB = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float) * matB.size * matB.size, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateBuffer: " << err << std::endl;
+    }
+
+    cl_mem matrixBufferC = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * matC.size * matC.size, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clCreateBuffer: " << err << std::endl;
+    }
+
+    //Заполняем буфер
+    err = clEnqueueWriteBuffer(queue, matrixBufferA, CL_TRUE, 0, sizeof(float) * matA.size * matA.size, matA.mat, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueWriteBuffer: " << err << std::endl;
+    }
+
+    err = clEnqueueWriteBuffer(queue, matrixBufferB, CL_TRUE, 0, sizeof(float) * matB.size * matB.size, matB.mat, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueWriteBuffer: " << err << std::endl;
+    }
+
+    err = clEnqueueWriteBuffer(queue, matrixBufferC, CL_TRUE, 0, sizeof(float) * matC.size * matC.size, matC.mat, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueWriteBuffer: " << err << std::endl;
+    }
+
+    err = clSetKernelArg(kernel, 0, sizeof(unsigned int), &matA.size);
+    err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &matrixBufferA);
+    err = clSetKernelArg(kernel, 2, sizeof(cl_mem), &matrixBufferB);
+    err = clSetKernelArg(kernel, 3, sizeof(cl_mem), &matrixBufferC);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clSetKernelArg: " << err << std::endl;
+    }
+
+    double start = omp_get_wtime();
+
+
+
+    err = clEnqueueNDRangeKernel(queue, kernel, 2, nullptr, global_work, local_work, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueNDRangeKernel: " << err << std::endl;
+    }
+
+
+    err = clFinish(queue);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clFinish: " << err << std::endl;
+    }
+    double finish = omp_get_wtime();
+    printf("Time of GPU_SIMPLE_MATRIX: %f in sec\n", finish - start);
+
+    err = clEnqueueReadBuffer(queue, matrixBufferC, CL_TRUE, 0, sizeof(float) * matC.size * matC.size, matC.mat, 0, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        std::cerr << "Error in clEnqueueReadBuffer: " << err << std::endl;
+    }
+
+    
+    
+    matC == matD;
+    /*if (checkMatrix(matC.mat, matD.mat, matC.size)) {
+        std::cout << "Correct work GPU multiMatrix\n";
+    }
+    else {
+        std::cout << "Doesn't correct work GPU multiMatrix\n";
+    }*/
+
+
+
+    clReleaseContext(context);
+    clReleaseDevice(device);
+    clReleaseProgram(program);
+    clReleaseKernel(kernel);
+    clReleaseCommandQueue(queue);
+
+}
+
+
+
 int main() {
 
     int x = 0;
@@ -1015,8 +1257,9 @@ int main() {
         std::cout << "7)OMP BLAS Function CPU" << std::endl;
         std::cout << "8)Result" << std::endl;
         std::cout << "-----LAB_3-----" << std::endl;
-        std::cout << "9)Clear console" << std::endl;
-        std::cout << "10) Exit." << std::endl;
+        std::cout << "9)Result" << std::endl;
+        std::cout << "10)Clear console" << std::endl;
+        std::cout << "11) Exit." << std::endl;
         std::cin >> x;
         switch (x)
         {
@@ -1058,6 +1301,10 @@ int main() {
             cpuBLAS_OMP();
             break;
         case 9:
+            gpuMulti();
+            //cpuMultiMatrix();
+            break;
+        case 10:
             system("cls");
             break;
         default:

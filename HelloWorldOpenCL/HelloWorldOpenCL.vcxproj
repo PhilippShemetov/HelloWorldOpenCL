@@ -149,12 +149,15 @@
   <ItemGroup>
     <ClCompile Include="BLAS.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="MultiMatrix.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="kernel.cl" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BLAS.h" />
+    <ClInclude Include="Matrix.h" />
+    <ClInclude Include="MultiMatrix.h" />
     <ClInclude Include="TAxpyArray.h" />
   </ItemGroup>
   <ItemGroup>

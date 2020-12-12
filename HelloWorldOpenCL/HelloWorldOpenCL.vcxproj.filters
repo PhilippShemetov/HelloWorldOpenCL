@@ -21,6 +21,9 @@
     <ClCompile Include="BLAS.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="MultiMatrix.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="kernel.cl">
@@ -32,6 +35,12 @@
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="TAxpyArray.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="Matrix.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="MultiMatrix.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
   </ItemGroup>
