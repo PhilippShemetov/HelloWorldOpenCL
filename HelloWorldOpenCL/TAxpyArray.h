@@ -13,6 +13,7 @@ struct TAxpyArray
     T* x;
     T* y;
     TAxpyArray(int _n, int _incx, int _incy, T _a);
+    TAxpyArray(const TAxpyArray& obj);
     ~TAxpyArray();
     void ArrayRNG();
     void ArrayNotRNG();
@@ -31,8 +32,29 @@ TAxpyArray<T>::TAxpyArray(int _n, int _incx, int _incy, T _a)
     x = new T[sizeX];
     y = new T[sizeY];
 
-    ArrayNotRNG();
+    ArrayRNG();
 
+}
+
+template<typename T>
+inline TAxpyArray<T>::TAxpyArray(const TAxpyArray& obj)
+{
+    size = obj.size;
+    incx = obj.incx;
+    incy = obj.incy;
+    sizeX = obj.sizeX;
+    sizeY = obj.sizeY;
+    a = obj.a;
+    x = new T[sizeX];
+    y = new T[sizeY];
+
+    for (int i = 0; i < sizeX; i++) {
+        x[i] = obj.x[i];
+    }
+
+    for (int i = 0; i < sizeY; i++) {
+        y[i] = obj.y[i];
+    }
 }
 
 template<typename T>
@@ -44,7 +66,7 @@ TAxpyArray<T>::~TAxpyArray()
 }
 
 template<typename T>
-inline void TAxpyArray<T>::ArrayRNG()
+void TAxpyArray<T>::ArrayRNG()
 {
     std::random_device rd;
     std::mt19937 gen(rd()); 
@@ -60,14 +82,14 @@ inline void TAxpyArray<T>::ArrayRNG()
 }
 
 template<typename T>
-inline void TAxpyArray<T>::ArrayNotRNG()
+void TAxpyArray<T>::ArrayNotRNG()
 {
     for (int i = 0; i < sizeX; i++) {
-        x[i] = T(i);
+        x[i] = T(i) + 0.1;
     }
 
     for (int i = 0; i < sizeY; i++) {
-        y[i] = T(i);
+        y[i] = T(i) + 0.1;
     }
 }
 
