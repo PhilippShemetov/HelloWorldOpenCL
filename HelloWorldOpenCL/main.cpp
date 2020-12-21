@@ -1025,7 +1025,7 @@ void cpuBLAS_OMP() {
 
 void cpuMultiMatrix() {
 
-    Matrix matA(2048);
+    Matrix matA(1024);
 
     Matrix matB(matA);
 
@@ -1034,7 +1034,7 @@ void cpuMultiMatrix() {
     /*TAxpyArray<double> dArray;*/
 
     double start = omp_get_wtime();
-    matC.mat = MultiMatrix(1024, matA.mat, matB.mat);
+    MultiMatrix(1024, matA.mat, matB.mat, matC.mat);
     double finish = omp_get_wtime();
     printf("Time of MultiMatrix on CPU: %f in sec\n", finish - start);
     matC.Print();
@@ -1116,7 +1116,7 @@ void gpuMulti() {
         std::cerr << "Error in clCreateKernel: " << err << std::endl;
     }
 
-    size_t local_work[2] = { 16,16 };
+    size_t local_work[2] = { 16 , 16 };
 
 
     //err = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE,
@@ -1140,13 +1140,30 @@ void gpuMulti() {
 
     Matrix matB(matA);
     
-    Matrix matC(matB);
-
-    Matrix matD(matB);
     
-    matC == matD;
+    Matrix matGPU(matB);
+    
+    Matrix matSeq(matB);
+    
+    Matrix matOpenMP(matB);
+    
 
-    matD.mat = MultiMatrix(1024, matA.mat, matB.mat);
+    //matC.ZeroFill();
+
+    //matC.Print();
+    
+    //matC == matD;
+
+    double start3 = omp_get_wtime();
+    MultiMatrix(1024, matA.mat, matB.mat, matSeq.mat);
+    double finish3 = omp_get_wtime();
+    printf("Time of MultiMatrix on CPU: %f in sec\n", finish3 - start3);
+    double start4 = omp_get_wtime();
+    MultiMatrixOmp(1024, matA.mat, matB.mat, matOpenMP.mat);
+    double finish4 = omp_get_wtime();
+    printf("Time of MultiMatrix on OpenMP CPU: %f in sec\n", finish4 - start4);
+    
+    
 
     //matD.Print();
 
@@ -1168,7 +1185,7 @@ void gpuMulti() {
         std::cerr << "Error in clCreateBuffer: " << err << std::endl;
     }
 
-    cl_mem matrixBufferC = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * matC.size * matC.size, nullptr, &err);
+    cl_mem matrixBufferC = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * matGPU.size * matGPU.size, nullptr, &err);
     if (err != CL_SUCCESS) {
         std::cerr << "Error in clCreateBuffer: " << err << std::endl;
     }
@@ -1184,7 +1201,7 @@ void gpuMulti() {
         std::cerr << "Error in clEnqueueWriteBuffer: " << err << std::endl;
     }
 
-    err = clEnqueueWriteBuffer(queue, matrixBufferC, CL_TRUE, 0, sizeof(float) * matC.size * matC.size, matC.mat, 0, nullptr, nullptr);
+    err = clEnqueueWriteBuffer(queue, matrixBufferC, CL_TRUE, 0, sizeof(float) * matGPU.size * matGPU.size, matGPU.mat, 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
         std::cerr << "Error in clEnqueueWriteBuffer: " << err << std::endl;
     }
@@ -1214,14 +1231,23 @@ void gpuMulti() {
     double finish = omp_get_wtime();
     printf("Time of GPU_SIMPLE_MATRIX: %f in sec\n", finish - start);
 
-    err = clEnqueueReadBuffer(queue, matrixBufferC, CL_TRUE, 0, sizeof(float) * matC.size * matC.size, matC.mat, 0, nullptr, nullptr);
+    err = clEnqueueReadBuffer(queue, matrixBufferC, CL_TRUE, 0, sizeof(float) * matGPU.size * matGPU.size, matGPU.mat, 0, nullptr, nullptr);
     if (err != CL_SUCCESS) {
         std::cerr << "Error in clEnqueueReadBuffer: " << err << std::endl;
     }
 
-    
-    
-    matC == matD;
+    printf("============A_MATRIX===========\n");
+    //matA.Print();
+    printf("============B_MATRIX===========\n");
+    //matB.Print();
+    printf("============C_MATRIX===========\n");
+    //matC.Print();
+    printf("============D_MATRIX===========\n");
+    //matD.Print();
+
+
+    matSeq == matGPU;
+    matSeq == matOpenMP;
     /*if (checkMatrix(matC.mat, matD.mat, matC.size)) {
         std::cout << "Correct work GPU multiMatrix\n";
     }

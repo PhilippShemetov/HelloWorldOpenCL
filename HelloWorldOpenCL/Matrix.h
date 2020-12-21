@@ -11,6 +11,7 @@ public:
 	~Matrix();
 	void ArrayRNG();
 	void ArrayNotRNG();
+	void ZeroFill();
 	void Print();
 	float* mat;
 	int size;
@@ -21,11 +22,11 @@ private:
 
 
 
-float* TransposeMatrix(const int size, float* mat) {
+float* TransposeMatrix(const int size, float* inputMat) {
 	float* transposeMat = new float[size*size];
 	for (int i = 0; i < size; ++i) {
 		for (int j = 0; j < size; ++j) {
-			transposeMat[j * size + i] = mat[i * size + j];
+			transposeMat[j * size + i] = inputMat[i * size + j];
 		}
 	}
 	return transposeMat;
@@ -60,7 +61,7 @@ inline void Matrix::ArrayRNG()
 {
 	std::random_device rd;
 	std::mt19937 gen(rd());
-	std::uniform_real_distribution<float> dis(0.0, 100.0);
+	std::uniform_real_distribution<float> dis(0.0, 1.0);
 
 	for (int i = 0; i < size; i++) {
 		for (int j = 0; j < size; j++) {
@@ -73,7 +74,17 @@ inline void Matrix::ArrayNotRNG()
 {
 	for (int i = 0; i < size; i++) {
 		for (int j = 0; j < size; j++) {
-			mat[i * size + j] = i*j;
+			mat[i * size + j] = i + j;
+			//printf("mat == %f", mat[i * size + j]);
+		}
+	}
+}
+
+inline void Matrix::ZeroFill()
+{
+	for (int i = 0; i < size; i++) {
+		for (int j = 0; j < size; j++) {
+			mat[i * size + j] = 0.0;
 		}
 	}
 }
@@ -89,13 +100,13 @@ inline void Matrix::Print()
 }
 
 bool operator==(const Matrix& a, const Matrix& b) {
-	float eps = 0.5;
+	float eps = 0.0005;
 	for (int i = 0; i < a.size; i++) {
 		for (int j = 0; j < a.size; j++) {
 			//std::cout << a.mat[i * a.size + j] << " == " << b.mat[i * b.size + j] << "fabs =" << std::fabs(a.mat[i * a.size + j] - b.mat[i * a.size + j])
 				//<< std::endl;
 			if (a.mat[i * a.size + j] != b.mat[i * b.size + j] && (std::fabs(a.mat[i * a.size + j] - b.mat[i * a.size + j]) > eps)) {
-				std::cout << a.mat[i * a.size + j] << " != " << b.mat[i * a.size + j] << "fabs =" << std::fabs(a.mat[i * a.size + j] - b.mat[i * a.size + j]);
+				printf("%f != %f, fabs = %f",a.mat[i * a.size + j], b.mat[i * a.size + j], std::fabs(a.mat[i * a.size + j] - b.mat[i * a.size + j]));
 				printf("False\n");
 				return false;
 			}
